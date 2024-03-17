@@ -12,7 +12,7 @@ engine = create_engine(url=sqlite_url, connect_args={"check_same_thread": False}
 SessionLocal = sessionmaker(engine)
 
 
-# helper for getting DB object using for interactingwith DB
+# helper for getting DB object using for interacting with DB
 def get_db():
     db = SessionLocal()
     try:
@@ -21,7 +21,9 @@ def get_db():
         db.close()
 
 
-class Base(DeclarativeBase):  # allows to convert regular classesinto sql alchemy models
+class Base(
+    DeclarativeBase
+):  # allows to convert regular classes into sql alchemy models
     pass
 
 

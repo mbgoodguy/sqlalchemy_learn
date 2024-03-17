@@ -63,7 +63,7 @@ class UserBase(BaseModel):
     about_me: Optional[str] = None
 
 
-#  uvicorn sync_sqlite3_app:app --reload  - запуск приложения
+#  uvicorn async_sqlite3_app:app --reload  - запуск приложения
 app = FastAPI()
 
 
