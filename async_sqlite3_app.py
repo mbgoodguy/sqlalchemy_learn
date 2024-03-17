@@ -1,24 +1,36 @@
+# for async work with db need pip install aiosqlite
+
 from typing import Optional
 
-import sqlalchemy.orm as so
 import uvicorn
 from fastapi import FastAPI, Depends
 from pydantic import BaseModel
-from sqlalchemy import create_engine, String
-from sqlalchemy.orm import DeclarativeBase, sessionmaker, Session
+from sqlalchemy import create_engine, String, select
+from sqlalchemy.orm import DeclarativeBase, sessionmaker, Session, Mapped, mapped_column
+from sqlalchemy.ext.asyncio import (
+    create_async_engine,
+    async_sessionmaker,
+    AsyncSession,
+)  # important difference from sync app
 
-sqlite_url = "sqlite:///db.sqlite3"
-engine = create_engine(url=sqlite_url, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(engine)
+sqlite_url = "sqlite+aiosqlite:///async_db.sqlite3"
+engine = create_async_engine(url=sqlite_url, connect_args={"check_same_thread": False})
+SessionLocal = async_sessionmaker(engine)
 
 
-# helper for getting DB object using for interactingwith DB
-def get_db():
+# async helper for getting DB object using for interactingwith DB
+async def get_db():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)  # should not be create_all()
+        print("Complete Base.metadata.create_all")
+        # используем run_sync т.к хотим запускать это асинхронно
     db = SessionLocal()
     try:
         yield db
+        print("db has been yielded")
     finally:
-        db.close()
+        await db.close()  # закрываем тоже асинхронно
+        print("Complete db.close()")
 
 
 class Base(DeclarativeBase):  # allows to convert regular classesinto sql alchemy models
@@ -28,19 +40,19 @@ class Base(DeclarativeBase):  # allows to convert regular classesinto sql alchem
 # SQLAlchemy table model
 class User(Base):
     __tablename__ = "users"
-    id: so.Mapped[int] = so.mapped_column(primary_key=True)
-    username: so.Mapped[str] = so.mapped_column(String(64), index=True, unique=True)
-    email: so.Mapped[Optional[str]] = so.mapped_column(
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), index=True, unique=True)
+    email: Mapped[Optional[str]] = mapped_column(
         String(120), index=True, unique=True, nullable=True
     )
-    password_hash: so.Mapped[Optional[str]] = so.mapped_column(
-        String(128), nullable=True
-    )
-    about_me: so.Mapped[Optional[str]] = so.mapped_column(String(140), nullable=True)
+    password_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    about_me: Mapped[Optional[str]] = mapped_column(String(140), nullable=True)
 
 
 #  Чтобы в запрос не заполнять все поля, сделаем в модели таблицы необязательными через nullable=True
 # а в модели Pydantic для полей которые необязательные к заполнению, укажем Optional[str] = None
+# Mapped - для указаня желаемого типа данных в столбце
+# mapped_column - для указания доп.информации, ограничений столбца, например index=True, unique=True
 
 
 # Pydantic model
@@ -51,22 +63,16 @@ class UserBase(BaseModel):
     about_me: Optional[str] = None
 
 
-try:
-    Base.metadata.create_all(engine)  # create all models in DB
-    print("База данных и таблица созданы")
-except Exception as e:
-    print(e)
-
 #  uvicorn sync_sqlite3_app:app --reload  - запуск приложения
 app = FastAPI()
 
 
 @app.post("/create_user")
-def create_user(user: UserBase, db: Session = Depends(get_db)):
+async def create_user(user: UserBase, db: AsyncSession = Depends(get_db)):
     db_user = User(username=user.username)
     db.add(db_user)
-    db.commit()
-    db.refresh(
+    await db.commit()
+    await db.refresh(
         db_user
     )  # put the extra info on the user object which will be id because it'sgenerated when save to the DB
 
@@ -74,10 +80,14 @@ def create_user(user: UserBase, db: Session = Depends(get_db)):
 
 
 @app.get("/users")
-def get_user(db: Session = Depends(get_db)):
-    users = db.query(User).all()
+async def get_user(db: AsyncSession = Depends(get_db)):
+    # users = db.query(User).all()
+    res = await db.execute(select(User))
+    users = res.scalars().all()
     return {"users": users}
 
 
 if __name__ == "__main__":
-    uvicorn.run("sync_sqlite3_app:app", port=8001, reload=True)  # http://127.0.0.1:8001
+    uvicorn.run(
+        "async_sqlite3_app:app", port=8001, reload=True
+    )  # http://127.0.0.1:8001
