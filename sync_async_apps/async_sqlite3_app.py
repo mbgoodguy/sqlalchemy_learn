@@ -18,19 +18,23 @@ engine = create_async_engine(url=sqlite_url, connect_args={"check_same_thread": 
 SessionLocal = async_sessionmaker(engine)
 
 
-# async helper for getting DB object using for interactingwith DB
-async def get_db():
+async def init_models():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)  # should not be create_all()
-        print("Complete Base.metadata.create_all")
+        print("Base.metadata.create_all has been completed")
         # используем run_sync т.к хотим запускать это асинхронно
+
+
+# async helper for getting DB object using for interactingwith DB
+async def get_db():
+    await init_models()
     db = SessionLocal()
     try:
         yield db
-        print("db has been yielded")
+        print("DB has been yielded")
     finally:
         await db.close()  # закрываем тоже асинхронно
-        print("Complete db.close()")
+        print("DB has been closed")
 
 
 class Base(DeclarativeBase):  # allows to convert regular classesinto sql alchemy models
@@ -88,6 +92,4 @@ async def get_user(db: AsyncSession = Depends(get_db)):
 
 
 if __name__ == "__main__":
-    uvicorn.run(
-        "async_sqlite3_app:app", port=8001, reload=True
-    )  # http://127.0.0.1:8001
+    uvicorn.run("async_sqlite3_app:app", port=8001, reload=True)  # http://127.0.0.1:8001
