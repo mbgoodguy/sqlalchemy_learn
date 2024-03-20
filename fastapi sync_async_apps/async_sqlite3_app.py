@@ -1,5 +1,5 @@
 # for async work with db need pip install aiosqlite
-
+import asyncio
 from typing import Optional
 
 import uvicorn
@@ -27,7 +27,6 @@ async def init_models():
 
 # async helper for getting DB object using for interactingwith DB
 async def get_db():
-    await init_models()
     db = SessionLocal()
     try:
         yield db
@@ -92,4 +91,5 @@ async def get_user(db: AsyncSession = Depends(get_db)):
 
 
 if __name__ == "__main__":
+    asyncio.run(init_models())
     uvicorn.run("async_sqlite3_app:app", port=8001, reload=True)  # http://127.0.0.1:8001
