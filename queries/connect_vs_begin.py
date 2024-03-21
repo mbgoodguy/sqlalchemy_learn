@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, text
 
-engine = create_engine(url="sqlite:///connect_vs_begin.sqlite3", echo=True)
+engine = create_engine(url="sqlite:///conn_vs_begin.sqlite3", echo=True)
 with engine.connect() as conn:
     # sqlalchemy.exc.ObjectNotExecutableError: Not an executable object: 'SELECT VERSION()':
     # q = conn.execute("SELECT sqlite_version();")
