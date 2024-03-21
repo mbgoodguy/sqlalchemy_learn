@@ -6,7 +6,11 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 sqlite_url = "sqlite+aiosqlite:///basic_db.sqlite3"
-engine = create_async_engine(url=sqlite_url, connect_args={"check_same_thread": False}, future=True)
+engine = create_async_engine(
+    url=sqlite_url,
+    connect_args={"check_same_thread": False},
+    future=True
+)
 async_session = AsyncSession(bind=engine)
 
 
@@ -53,7 +57,7 @@ async def create_user(username: str, user_id: Union[int, None] = None):
 async def get_all_users():
     async with async_session as session:
         users = await session.execute(select(User))  # sqlalchemy.engine.result.ChunkedIteratorResult object
-        users_scalars = users.scalars().all()
+        users_scalars = users.scalars()
         # print(users_scalars)
 
         for usr in users_scalars:
@@ -63,9 +67,8 @@ async def get_all_users():
 
 async def get_user_by_id(user_id: int):
     async with async_session as session:
-        user = await session.get(User, user_id)
-
         if await user_exists(session=session, user_id=user_id):
+            user = await session.get(User, user_id)
             print(f"\nGot user with id {user.id}: username: {user.username}\n")
         else:
             print(f"User with id {user_id} doesn't exists\n")
@@ -73,26 +76,26 @@ async def get_user_by_id(user_id: int):
 
 async def get_filtered_users(user_id: int, letter: Union[str | None] = None):
     async with async_session as session:
-        # filtered_users = await session.execute(select(User).filter(User.id == 4))
-
-        # filtered_users_scalars = filtered_users.scalars()
-
         if await user_exists(session=session, user_id=user_id):
             filtered_user = await session.get(User, user_id)
-            print(f"Username of user with id 4: {filtered_user.username}")
+            print(f"Username of user with id {user_id}: {filtered_user.username}")
         else:
             print(f"User with id {user_id} doesn't exist")
 
-        if await user_exists(session=session, user_id=user_id) and letter is not None:
-            filtered_users = await session.execute(select(User).filter(User.username.contains(letter)))
-            print(f'Users with letter {letter} in username:')
-            for user in filtered_users.scalars():
-                print(f"    id: {user.id}, username: {user.username}")
-        else:
-            print(f"There are no filtered users \n")
+        if letter is not None:
+            filtered_users = await session.execute(
+                select(User).filter(User.username.contains(letter))
+            )
+            # print(type(filtered_users))  # <class 'sqlalchemy.engine.result.ChunkedIteratorResult'>
 
-        # for user in filtered_users.all():  # AttributeError: id. Нужно использовать scalars()
-        #     print(f"user: {user.id}, username: {user.username}")
+            if check_is_falsy(filtered_users.scalars()):
+                print(f"Users with letter {letter} in username:")
+                for user in filtered_users.scalars():
+                    print(f"    id: {user.id}, username: {user.username}")
+            else:
+                print(f"There are no users with letter {letter} in username\n")
+        else:
+            print(f"Filtering by letter has not been set\n")
 
 
 async def update_user_by_id(user_id: int, username: str):
@@ -101,7 +104,7 @@ async def update_user_by_id(user_id: int, username: str):
         if await user_exists(session=session, user_id=user_id):
             if username:
                 user.username = username
-                print(f'\nUser with id {user_id} has been modified')
+                print(f"\nUser with id {user_id} has been modified")
                 await session.commit()
         else:
             print(f"\nUser with id {user_id} doesn't exist")
@@ -113,7 +116,7 @@ async def delete_user_by_id(user_id: int):
 
         if await user_exists(session=session, user_id=user_id):
             await session.delete(user)
-            print(f'\tUser with id {user_id} has been deleted')
+            print(f"\tUser with id {user_id} has been deleted")
             await session.commit()
         else:
             print(f"\nUser with id {user_id} doesn't exist")
@@ -125,9 +128,9 @@ async def main():
     # await get_all_users()  # ok
     # await get_user_by_id(3)  # ok
     # await get_filtered_users(3)  # ok
-    # await update_user_by_id(user_id=7, username='Lily Larimar')
-    await delete_user_by_id(user_id=7)
+    # await update_user_by_id(user_id=7, username="Lily Larimar")
+    # await delete_user_by_id(user_id=7)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())
