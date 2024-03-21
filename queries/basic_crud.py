@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any
+from typing import Any, Union
 
 from sqlalchemy import String, select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -27,28 +27,27 @@ def check_is_falsy(obj: Any):
     return bool(obj)
 
 
+async def user_exists(session: AsyncSession, user_id: int):
+    user = await session.get(User, user_id)
+
+    return bool(user)
+
+
 async def init_models():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         print("Tables created\n")
 
 
-async def create_user(username: str, user_id: int = None):
+async def create_user(username: str, user_id: Union[int, None] = None):
     async with async_session as session:
-        if check_is_falsy(user_id):
-            user = User(username=username)
-            try:
-                session.add(user)
-                await session.commit()
-            except Exception as e:
-                print(e)
+        if user_id is not None and await user_exists(session=session, user_id=user_id):
+            print("User with this ID already exists. Cannot create a new user with the same ID.")
         else:
-            user = User(username=username, id=user_id)
-            try:
-                session.add(user)
-                await session.commit()
-            except Exception as e:
-                print(e)
+            user = User(username=username)
+            session.add(user)
+            await session.commit()
+            print("User created\n")
 
 
 async def get_all_users():
@@ -66,30 +65,31 @@ async def get_user_by_id(user_id: int):
     async with async_session as session:
         user = await session.get(User, user_id)
 
-        if check_is_falsy(user):
+        if await user_exists(session=session, user_id=user_id):
             print(f"\nGot user with id {user.id}: username: {user.username}\n")
         else:
             print(f"User with id {user_id} doesn't exists\n")
 
 
-async def get_filtered_users(user_id: int):
+async def get_filtered_users(user_id: int, letter: Union[str | None] = None):
     async with async_session as session:
         # filtered_users = await session.execute(select(User).filter(User.id == 4))
-        filtered_user = await session.get(User, user_id)
-        filtered_users = await session.execute(select(User).filter(User.username.contains('a')))
-        filtered_users_scalars = filtered_users.scalars()
 
-        if check_is_falsy(filtered_user):
+        # filtered_users_scalars = filtered_users.scalars()
+
+        if await user_exists(session=session, user_id=user_id):
+            filtered_user = await session.get(User, user_id)
             print(f"Username of user with id 4: {filtered_user.username}")
         else:
             print(f"User with id {user_id} doesn't exist")
 
-        if check_is_falsy(filtered_users):
-            print(f'Users with letter "a" in username:')
+        if await user_exists(session=session, user_id=user_id) and letter is not None:
+            filtered_users = await session.execute(select(User).filter(User.username.contains(letter)))
+            print(f'Users with letter {letter} in username:')
             for user in filtered_users.scalars():
                 print(f"    id: {user.id}, username: {user.username}")
         else:
-            print(f"There are no users with the letter 'a' in their name.\n")
+            print(f"There are no filtered users \n")
 
         # for user in filtered_users.all():  # AttributeError: id. Нужно использовать scalars()
         #     print(f"user: {user.id}, username: {user.username}")
@@ -98,7 +98,7 @@ async def get_filtered_users(user_id: int):
 async def update_user_by_id(user_id: int, username: str):
     async with async_session as session:
         user = await session.get(User, user_id)
-        if check_is_falsy(user):
+        if await user_exists(session=session, user_id=user_id):
             if username:
                 user.username = username
                 print(f'\nUser with id {user_id} has been modified')
@@ -111,7 +111,7 @@ async def delete_user_by_id(user_id: int):
     async with async_session as session:
         user = await session.get(User, user_id)
 
-        if check_is_falsy(user):
+        if await user_exists(session=session, user_id=user_id):
             await session.delete(user)
             print(f'\tUser with id {user_id} has been deleted')
             await session.commit()
@@ -121,12 +121,12 @@ async def delete_user_by_id(user_id: int):
 
 async def main():
     await init_models()
-    # await create_user(username='z')  # ok
+    # await create_user(username='q')  # ok
     # await get_all_users()  # ok
     # await get_user_by_id(3)  # ok
     # await get_filtered_users(3)  # ok
     # await update_user_by_id(user_id=7, username='Lily Larimar')
-    # await delete_user_by_id(user_id=9)
+    await delete_user_by_id(user_id=7)
 
 
 if __name__ == '__main__':
