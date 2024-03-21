@@ -1,13 +1,15 @@
 import asyncio
 
-from sqlalchemy import String, ForeignKey, Integer, CheckConstraint
+from sqlalchemy import String, ForeignKey, Integer, CheckConstraint, UniqueConstraint
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 DB_URL = "sqlite+aiosqlite:///one_to_one.sqlite3"
 
 engine = create_async_engine(
-    url=DB_URL, connect_args={"check_same_thread": False}, future=True
+    url=DB_URL,
+    connect_args={"check_same_thread": False},
+    future=True,
 )
 async_session = AsyncSession(bind=engine)
 
@@ -29,17 +31,21 @@ class Citizen(Base):
     passport_id: Mapped[int] = relationship(
         "Passport", backref="citizen", uselist=False
     )
+    # passport_id: Mapped["Passport"] = relationship(back_populates="citizen")
 
 
 class Passport(Base):
     __tablename__ = "passports"
+    __table_args__ = ((UniqueConstraint("citizen_id", name="unique_citizen_id")),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     serial: Mapped[int] = mapped_column(
-        Integer(), CheckConstraint("LENGTH(serial) = 4")
+        Integer(),
+        CheckConstraint("LENGTH(serial) = 4"),
     )
     number: Mapped[int] = mapped_column(
-        Integer(), CheckConstraint("LENGTH(number) = 6")
+        Integer(),
+        CheckConstraint("LENGTH(number) = 6"),
     )
 
     citizen_id: Mapped[int] = mapped_column(
@@ -74,7 +80,7 @@ async def add_passport(serial: int, number: int, citizen_id: int):
 
 async def main():
     await init_models()
-    await add_passport(serial=3425, number=128246, citizen_id=1)
+    await add_passport(serial=3519, number=252673, citizen_id=2)
 
 
 if __name__ == "__main__":
